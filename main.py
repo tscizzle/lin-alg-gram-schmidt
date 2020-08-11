@@ -7,13 +7,30 @@ from time import perf_counter
 def tyler_gram_schmidt(vectors):
     """ Orthogonalize the vectors in the columns of a matrix, using Gram-Schmidt.
 
-    :param ndarray vectors: (m x n) Each column is an m-dimensional vector.
+    :param np.array vectors: (m x n) Each column is an m-dimensional vector.
 
-    :return ndarray orthovectors: (m x n) A new set of m-dimensional column vectors that
-        are orthonormal. (None if vectors are dependent)
+    :return np.array orthovectors: (m x r) A new set of m-dimensional column vectors
+        that are orthonormal. There are r vectors (columns)
     """
-    ## TODO: implement this
-    orthovectors = vectors
+
+    ## Loop through the vectors and make each one orthogonal to all the previous ones.
+
+    orthovectors = []
+    for vec in vectors.T:
+        # Remove the projection of this vector onto each of the previous vectors,
+        # ensuring that what's left is orthogonal to all previous vectors.
+        for prev_vec in orthovectors:
+            vec = vec - (np.dot(vec, prev_vec) * prev_vec)
+        # If the remaining vector is the 0-vector, this vector is not independent of the
+        # previous ones, so it adds nothing new, and is thrown out.
+        if np.allclose(vec, np.zeros(len(vec))):
+            continue
+        # Normalize so it's a unit vector, before storing it.
+        unit_vec = vec / np.linalg.norm(vec)
+        orthovectors.append(unit_vec)
+
+    orthovectors = np.array(orthovectors).T
+
     return orthovectors
 
 
@@ -127,19 +144,30 @@ def evaluate_gram_schmidt_runtime(algo, up_to_m=100, up_to_n=100, trials_per_mn=
 
 
 def main():
-    # Check that Tyler's solver gets the same answer as numpy's, on some random problem.
-    vectors = random_matrix(10, 10)
-    orthovectors_0 = tyler_gram_schmidt(vectors)
-    orthovectors_1 = builtin_orthogonalization(vectors)
-    np.testing.assert_allclose(orthovectors_0, orthovectors_1)
+    ## Check that the output columns span the same space as the input columns.
+    vectors = random_matrix(10, 4)
+    # vectors = np.array([[1, 1, 0], [0, 0, 1], [1, 1, 1]])
+    orthovectors = tyler_gram_schmidt(vectors)
+    # Make sure they have the same rank, and combining them doesn't increase that rank.
+    np.testing.assert_equal(
+        np.linalg.matrix_rank(orthovectors), np.linalg.matrix_rank(vectors)
+    )
+    np.testing.assert_equal(
+        np.linalg.matrix_rank(orthovectors),
+        np.linalg.matrix_rank(np.hstack((orthovectors, vectors))),
+    )
+    # Also make sure the vectors are orthonormal, by checking Q'Q=I.
+    np.testing.assert_allclose(
+        np.dot(orthovectors.T, orthovectors), np.eye(orthovectors.shape[1]), atol=1e-10
+    )
 
-    # Chart runtime growth of Tyler's algo and numpy's algo.
-    evaluate_gram_schmidt_runtime(
-        builtin_orthogonalization, up_to_m=10, up_to_n=10, trials_per_mn=5
-    )
-    evaluate_gram_schmidt_runtime(
-        tyler_gram_schmidt, up_to_m=10, up_to_n=10, trials_per_mn=5
-    )
+    # ## Chart runtime growth of Tyler's algo and numpy's algo.
+    # evaluate_gram_schmidt_runtime(
+    #     builtin_orthogonalization, up_to_m=500, up_to_n=500, trials_per_mn=5
+    # )
+    # evaluate_gram_schmidt_runtime(
+    #     tyler_gram_schmidt, up_to_m=500, up_to_n=500, trials_per_mn=5
+    # )
 
 
 if __name__ == "__main__":
